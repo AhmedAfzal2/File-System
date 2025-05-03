@@ -219,9 +219,8 @@ class File(TreeNode):
         self.blocks = self.blocks[:start_block]
         self.fs.save()
         
-    def display_details(self):
-        print(f"Name: {self.name}\nSize: {self.size}")
+    def get_details(self):
+        details = f"{self.name} of {self.size} bytes"
         if len(self.blocks) > 0:
-            print(f"Blocks: {self.blocks}")
-        else:
-            print("No memory allocated.")
+            details += f" at blocks {self.blocks}"
+        return details

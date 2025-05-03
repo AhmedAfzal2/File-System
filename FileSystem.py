@@ -240,7 +240,10 @@ class FileSystem:
         return found
     
     def close(self, file: File):
-        self.opened_files.remove(file)
+        if file in self.opened_files:
+            self.opened_files.remove(file)
+        else:
+            print("File not open.")
         
     def print_current_path(self):
         print("PS /", end='')
@@ -250,10 +253,16 @@ class FileSystem:
             print(f"{self.current_path[-1].name}", end='')
         print("> ", end='')
         
-    def show_memory_map(self):
-        for file in self.opened_files:
-            file.display_details()
-            print('')
+    def show_memory_map(self, node=None, level=0):
+        if not node:
+            node = self.root
+        
+        print("    " * (level - 1) + "----" * (level > 0) + node.name)
+        for child in node.children:
+            if type(child) == Directory:
+                self.show_memory_map(child, level + 1)
+            else:
+                print("    " * level + "----" + child.get_details())
             
     def __del__(self):
         self.file.close()

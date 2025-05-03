@@ -82,7 +82,8 @@ try:
                 if warn_args("close", 1, l):
                     continue
                 fs.close(opened_files[args[0]])
-                del opened_files[args[0]]
+                if args[0] in opened_files:
+                    del opened_files[args[0]]
 
             case "write_to_file":
                 if l != 2 and l != 3:
