@@ -182,14 +182,14 @@ class FileSystem:
         self.save()
 
     def delete_dir(self, name: str):
-        dir = self.search_path(name, Directory)
+        dir, parent = self.search_path(name, Directory, parent=True)
         if dir:
             for child in dir.children:
                 if type(child) == File:
-                    self.delete_file_t(child, self.current_path[-1])
+                    self.delete_file_t(child, parent)
                 else:
                     self.delete_dir_t(child, dir)
-            self.current_path[-1].children.remove(dir)
+            parent.children.remove(dir)
             del dir
             self.save()
             
