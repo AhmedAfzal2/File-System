@@ -3,6 +3,7 @@ from nodes import Directory, File
 from bitarray import bitarray
 import pickle
 import os
+import re
 
 class FileSystem:
     def __init__(self, file_name):
@@ -100,25 +101,30 @@ class FileSystem:
     def mkdir(self, path: str, file=False):
         node, path_list = self.str_to_path(path)
         
-        # only need to check if first one exists
-        if self.search_dir(node, path_list[0], Directory):
-            print(f"Directory {'/' * self.is_abs(path) + path_list[0]} already exists.")
-            return
-        
-        if file and len(path_list) == 1 and self.search_dir(node, path_list[0], File):
-            print(f"File {'/' * self.is_abs(path) + path_list[0]} already exists.")
-            return
+        i = 0
+        while i < len(path_list) - 1:
+            new_node = self.search_dir(node, path_list[i], Directory)
+            if new_node == None:
+                break
+            node = new_node
+            i += 1
 
         # create each directory
-        for dir_name in path_list[:-1]:
+        for dir_name in path_list[i:-1]:
             this_dir = Directory(dir_name)
             node.children.append(this_dir)
             node = this_dir
             
         if file:
-            node.children.append(File(path_list[-1], self))
+            if self.search_dir(node, path_list[-1], File):
+                print(f"File {'/' * self.is_abs(path) + path_list} already exists.")
+            else:
+                node.children.append(File(path_list[-1], self))
         else:
-            node.children.append(Directory(path_list[-1]))
+            if self.search_dir(node, path_list[-1], Directory):
+                print(f"Directory {'/' * self.is_abs(path) + path_list} already exists.")
+            else:
+                node.children.append(Directory(path_list[-1]))
 
         self.save()
         
@@ -176,14 +182,14 @@ class FileSystem:
         self.save()
 
     def delete_dir(self, name: str):
-        dir = self.search_path(name, Directory)
+        dir, parent = self.search_path(name, Directory, parent=True)
         if dir:
             for child in dir.children:
                 if type(child) == File:
-                    self.delete_file_t(child, self.current_path[-1])
+                    self.delete_file_t(child, parent)
                 else:
                     self.delete_dir_t(child, dir)
-            self.current_path[-1].children.remove(dir)
+            parent.children.remove(dir)
             del dir
             self.save()
             
@@ -213,25 +219,37 @@ class FileSystem:
                 return (i + FREE_START // BLOCK_SIZE) * BLOCK_SIZE
 
     def open(self, name: str, mode: str) -> File:
-        #REFEX HERE
-        found = self.search_path(name, File)
-
-        # create empty file in write mode
-        if mode == 'w':
-            if found:
-                self.delete_file_t(found, self.current_path[-1])
-            found = self.create(name)
-            
-        if type(found) != File:
-            print(f"File {name} does not exist.")
+        if re.fullmatch(r'[raw]\+?$', mode) is None:    # valid modes are r, a, w, r+, a+, w+
+            print(f"Invalid mode: {mode}")
             return
         
-        found.set_mode(mode)
+        found = self.search_path(name, File)
+        
+        if mode[0] == 'w':
+            if found:
+                self.delete_file(name)      # rewrite file in 'w'
+            found = self.create(name)
+        elif mode[0] == 'a' and not found:
+            found = self.create(name)   # create if not exists in 'a'
+        elif not found:
+            print(f"File {name} does not exist.")
+            return
+        elif found in self.opened_files:
+            print(f"File {name} already opened.")
+            return
+        
+        if len(mode) == 2:      # if r+, a+, or w+, both read and write are allowed
+            found.set_mode('all')
+        else:
+            found.set_mode(mode[0])     # only first letter is allowed
         self.opened_files.append(found)
         return found
     
     def close(self, file: File):
-        self.opened_files.remove(file)
+        if file in self.opened_files:
+            self.opened_files.remove(file)
+        else:
+            print("File not open.")
         
     def print_current_path(self):
         print("PS /", end='')
@@ -241,11 +259,30 @@ class FileSystem:
             print(f"{self.current_path[-1].name}", end='')
         print("> ", end='')
         
-    def show_memory_map(self):
-        for file in self.opened_files:
-            file.display_details()
-            print('')
-            
+    def print_dir_tree(self, file_details: list[str], node=None, prefix='', is_last=True):
+        if not node:
+            node = self.root
+            print(node.name)
+        else:
+            icon = '📁' if type(node) == Directory else '📄'
+            connector = "└── " if is_last else "├── "
+            print(f"{prefix}{connector}{icon} {node.name}")
+            prefix += "     " if is_last else "│    "
+    
+        if type(node) == Directory:
+            for index, child in enumerate(node.children):
+                is_last_child = index == len(node.children) - 1
+                self.print_dir_tree(file_details, child, prefix, is_last_child)
+        else:
+            file_details.append(node.get_details())
         
+    def show_memory_map(self):
+        file_details = []
+        self.print_dir_tree(file_details)
+        print("\nFile Memory")
+        for details in file_details:
+            print(details)
+        print()
+            
     def __del__(self):
         self.file.close()

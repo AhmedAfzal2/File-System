@@ -87,6 +87,10 @@ class File(TreeNode):
             print("Attempt to write in read mode.")
             return
         
+        if write_at < 0:
+            print("Arguments cannot be negative.")
+            return
+        
         if len(self.blocks) == 0:
             self.blocks.append(self.fs.allocate())
         
@@ -150,7 +154,7 @@ class File(TreeNode):
         self.fs.save()
         
     def read_entire_file(self) -> bytes:
-        if self.mode != 'r':
+        if self.mode != 'r' and self.mode != 'all':
             print("Attempt to read in wrong mode.")
             return
         
@@ -172,7 +176,11 @@ class File(TreeNode):
         if start == None and size == None:
             return self.read_entire_file()
         
-        if self.mode != 'r':
+        if start < 0 or size < 0:
+            print("Arguments cannot be negative.")
+            return
+        
+        if self.mode != 'r' and self.mode != 'all':
             print("Attempt to read in wrong mode.")
             return
         
@@ -205,10 +213,13 @@ class File(TreeNode):
         return data
     
     def move_within_file(self, source, dest, size):
+        if source < 0 or dest < 0 or size < 0:
+            print("Arguments cannot be negative.")
+            return
+        
         data = self.read_from_file(source, size)
         self.write_to_file(b'\x00' * size, source)
         self.write_to_file(data, dest)
-        
     
     def truncate_file(self, size):
         start_block = size // BLOCK_SIZE
@@ -216,13 +227,13 @@ class File(TreeNode):
             start_block += 1
             
         for i in range(start_block, len(self.blocks)):
-            self.fs.free_spaces[(i - FREE_START // BLOCK_SIZE) // BLOCK_SIZE] = True
+            self.fs.free_spaces[(self.blocks[i] - FREE_START) // BLOCK_SIZE] = True
         self.blocks = self.blocks[:start_block]
+        self.size = size
         self.fs.save()
         
-    def display_details(self):
-        print(f"Name: {self.name}\nSize: {self.size}")
+    def get_details(self):
+        details = f"{self.name} of {self.size} bytes"
         if len(self.blocks) > 0:
-            print(f"Blocks: {self.blocks}")
-        else:
-            print("No memory allocated.")
+            details += f" at blocks {self.blocks}"
+        return details

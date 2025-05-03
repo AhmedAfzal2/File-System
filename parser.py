@@ -74,13 +74,16 @@ try:
             case "open":
                 if warn_args("open", 2, l):
                     continue
-                opened_files[args[0]] = fs.open(args[0], args[1])
+                file = fs.open(args[0], args[1])
+                if file:
+                    opened_files[args[0]] = file
 
             case "close":
                 if warn_args("close", 1, l):
                     continue
                 fs.close(opened_files[args[0]])
-                del opened_files[args[0]]
+                if args[0] in opened_files:
+                    del opened_files[args[0]]
 
             case "write_to_file":
                 if l != 2 and l != 3:
@@ -91,9 +94,9 @@ try:
                     continue
                 
                 if l == 2:
-                    opened_files[args[0]].write_to_file(fs, args[1].strip('"').strip("'"))
+                    opened_files[args[0]].write_to_file(args[1].strip('"').strip("'"))
                 else:
-                    opened_files[args[0]].write_to_file(fs, args[1].strip('"').strip("'"), int(args[2]))
+                    opened_files[args[0]].write_to_file(args[1].strip('"').strip("'"), int(args[2]))
 
             case "read_from_file":
                 if l != 1 and l != 3:
@@ -104,9 +107,18 @@ try:
                     continue
                 
                 if l == 1:
-                    print(opened_files[args[0]].read_from_file(fs))
+                    print(opened_files[args[0]].read_from_file())
                 else:
-                    print(opened_files[args[0]].read_from_file(fs, int(args[1]), int(args[2])))
+                    print(opened_files[args[0]].read_from_file(int(args[1]), int(args[2])))
+                    
+            case "move_within_file":
+                if warn_args("move_within_file", 4, l):
+                    continue
+                if args[0] not in opened_files:
+                    print(f"{args[0]} is not opened. Cannot read.")
+                    continue
+                
+                opened_files[args[0]].move_within_file(int(args[1]), int(args[2]), int(args[3]))
 
             case "truncate_file":
                 if warn_args("truncate_file", 2, l):
@@ -114,7 +126,7 @@ try:
                 if args[0] not in opened_files:
                     print(f"{args[0]} is not opened. Cannot truncate.")
                     continue
-                opened_files[args[0]].truncate_file(int(args[1]), fs)
+                opened_files[args[0]].truncate_file(int(args[1]))
 
             case "ls":
                 if warn_args("ls", 0, l):
