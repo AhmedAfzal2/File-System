@@ -87,6 +87,10 @@ class File(TreeNode):
             print("Attempt to write in read mode.")
             return
         
+        if write_at < 0:
+            print("Arguments cannot be negative.")
+            return
+        
         if len(self.blocks) == 0:
             self.blocks.append(self.fs.allocate())
         
@@ -172,6 +176,10 @@ class File(TreeNode):
         if start == None and size == None:
             return self.read_entire_file()
         
+        if start < 0 or size < 0:
+            print("Arguments cannot be negative.")
+            return
+        
         if self.mode != 'r' and self.mode != 'all':
             print("Attempt to read in wrong mode.")
             return
@@ -205,6 +213,10 @@ class File(TreeNode):
         return data
     
     def move_within_file(self, source, dest, size):
+        if source < 0 or dest < 0 or size < 0:
+            print("Arguments cannot be negative.")
+            return
+        
         data = self.read_from_file(source, size)
         self.write_to_file(b'\x00' * size, source)
         self.write_to_file(data, dest)
@@ -215,8 +227,9 @@ class File(TreeNode):
             start_block += 1
             
         for i in range(start_block, len(self.blocks)):
-            self.fs.free_spaces[(i - FREE_START // BLOCK_SIZE) // BLOCK_SIZE] = True
+            self.fs.free_spaces[(self.blocks[i] - FREE_START) // BLOCK_SIZE] = True
         self.blocks = self.blocks[:start_block]
+        self.size = size
         self.fs.save()
         
     def get_details(self):

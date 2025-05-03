@@ -101,25 +101,30 @@ class FileSystem:
     def mkdir(self, path: str, file=False):
         node, path_list = self.str_to_path(path)
         
-        # only need to check if first one exists
-        if self.search_dir(node, path_list[0], Directory):
-            print(f"Directory {'/' * self.is_abs(path) + path_list[0]} already exists.")
-            return
-        
-        if file and len(path_list) == 1 and self.search_dir(node, path_list[0], File):
-            print(f"File {'/' * self.is_abs(path) + path_list[0]} already exists.")
-            return
+        i = 0
+        while i < len(path_list) - 1:
+            new_node = self.search_dir(node, path_list[i], Directory)
+            if new_node == None:
+                break
+            node = new_node
+            i += 1
 
         # create each directory
-        for dir_name in path_list[:-1]:
+        for dir_name in path_list[i:-1]:
             this_dir = Directory(dir_name)
             node.children.append(this_dir)
             node = this_dir
             
         if file:
-            node.children.append(File(path_list[-1], self))
+            if self.search_dir(node, path_list[-1], File):
+                print(f"File {'/' * self.is_abs(path) + path_list} already exists.")
+            else:
+                node.children.append(File(path_list[-1], self))
         else:
-            node.children.append(Directory(path_list[-1]))
+            if self.search_dir(node, path_list[-1], Directory):
+                print(f"Directory {'/' * self.is_abs(path) + path_list} already exists.")
+            else:
+                node.children.append(Directory(path_list[-1]))
 
         self.save()
         
@@ -220,17 +225,18 @@ class FileSystem:
         
         found = self.search_path(name, File)
         
-        if not found:
+        if mode[0] == 'w':
+            if found:
+                self.delete_file(name)      # rewrite file in 'w'
+            found = self.create(name)
+        elif mode[0] == 'a' and not found:
+            found = self.create(name)   # create if not exists in 'a'
+        elif not found:
             print(f"File {name} does not exist.")
             return
         elif found in self.opened_files:
             print(f"File {name} already opened.")
             return
-        elif mode[0] == 'w' and found:
-            self.delete_file(name)      # rewrite file in 'w'
-            found = self.create(name)
-        elif mode[0] == 'a' and not found:
-            found = self.create(name)   # create if not exists in 'a'
         
         if len(mode) == 2:      # if r+, a+, or w+, both read and write are allowed
             found.set_mode('all')
@@ -253,16 +259,30 @@ class FileSystem:
             print(f"{self.current_path[-1].name}", end='')
         print("> ", end='')
         
-    def show_memory_map(self, node=None, level=0):
+    def print_dir_tree(self, file_details: list[str], node=None, prefix='', is_last=True):
         if not node:
             node = self.root
+            print(node.name)
+        else:
+            icon = '📁' if type(node) == Directory else '📄'
+            connector = "└── " if is_last else "├── "
+            print(f"{prefix}{connector}{icon} {node.name}")
+            prefix += "     " if is_last else "│    "
+    
+        if type(node) == Directory:
+            for index, child in enumerate(node.children):
+                is_last_child = index == len(node.children) - 1
+                self.print_dir_tree(file_details, child, prefix, is_last_child)
+        else:
+            file_details.append(node.get_details())
         
-        print("    " * (level - 1) + "----" * (level > 0) + node.name)
-        for child in node.children:
-            if type(child) == Directory:
-                self.show_memory_map(child, level + 1)
-            else:
-                print("    " * level + "----" + child.get_details())
+    def show_memory_map(self):
+        file_details = []
+        self.print_dir_tree(file_details)
+        print("\nFile Memory")
+        for details in file_details:
+            print(details)
+        print()
             
     def __del__(self):
         self.file.close()
