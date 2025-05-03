@@ -150,7 +150,7 @@ class File(TreeNode):
         self.fs.save()
         
     def read_entire_file(self) -> bytes:
-        if self.mode != 'r':
+        if self.mode != 'r' and self.mode != 'all':
             print("Attempt to read in wrong mode.")
             return
         
@@ -172,7 +172,7 @@ class File(TreeNode):
         if start == None and size == None:
             return self.read_entire_file()
         
-        if self.mode != 'r':
+        if self.mode != 'r' and self.mode != 'all':
             print("Attempt to read in wrong mode.")
             return
         
@@ -208,7 +208,6 @@ class File(TreeNode):
         data = self.read_from_file(source, size)
         self.write_to_file(b'\x00' * size, source)
         self.write_to_file(data, dest)
-        
     
     def truncate_file(self, size):
         start_block = size // BLOCK_SIZE

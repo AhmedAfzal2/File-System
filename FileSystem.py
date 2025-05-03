@@ -3,6 +3,7 @@ from nodes import Directory, File
 from bitarray import bitarray
 import pickle
 import os
+import re
 
 class FileSystem:
     def __init__(self, file_name):
@@ -213,20 +214,28 @@ class FileSystem:
                 return (i + FREE_START // BLOCK_SIZE) * BLOCK_SIZE
 
     def open(self, name: str, mode: str) -> File:
-        #REFEX HERE
-        found = self.search_path(name, File)
-
-        # create empty file in write mode
-        if mode == 'w':
-            if found:
-                self.delete_file_t(found, self.current_path[-1])
-            found = self.create(name)
-            
-        if type(found) != File:
-            print(f"File {name} does not exist.")
+        if re.fullmatch(r'[raw]\+?$', mode) is None:    # valid modes are r, a, w, r+, a+, w+
+            print(f"Invalid mode: {mode}")
             return
         
-        found.set_mode(mode)
+        found = self.search_path(name, File)
+        
+        if not found:
+            print(f"File {name} does not exist.")
+            return
+        elif found in self.opened_files:
+            print(f"File {name} already opened.")
+            return
+        elif mode[0] == 'w' and found:
+            self.delete_file(name)      # rewrite file in 'w'
+            found = self.create(name)
+        elif mode[0] == 'a' and not found:
+            found = self.create(name)   # create if not exists in 'a'
+        
+        if len(mode) == 2:      # if r+, a+, or w+, both read and write are allowed
+            found.set_mode('all')
+        else:
+            found.set_mode(mode[0])     # only first letter is allowed
         self.opened_files.append(found)
         return found
     
@@ -246,6 +255,5 @@ class FileSystem:
             file.display_details()
             print('')
             
-        
     def __del__(self):
         self.file.close()

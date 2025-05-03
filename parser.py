@@ -74,7 +74,9 @@ try:
             case "open":
                 if warn_args("open", 2, l):
                     continue
-                opened_files[args[0]] = fs.open(args[0], args[1])
+                file = fs.open(args[0], args[1])
+                if file:
+                    opened_files[args[0]] = file
 
             case "close":
                 if warn_args("close", 1, l):
