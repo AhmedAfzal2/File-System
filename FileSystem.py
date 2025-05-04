@@ -186,7 +186,7 @@ class FileSystem:
         if dir:
             for child in dir.children:
                 if type(child) == File:
-                    self.delete_file_t(child, parent)
+                    self.delete_file_t(child, dir)
                 else:
                     self.delete_dir_t(child, dir)
             parent.children.remove(dir)
@@ -279,10 +279,12 @@ class FileSystem:
     def show_memory_map(self):
         file_details = []
         self.print_dir_tree(file_details)
-        print("\nFile Memory")
-        for details in file_details:
-            print(details)
-        print()
+        
+        if len(file_details) > 0:
+            print("\nFile Memory")
+            for details in file_details:
+                print(details)
+            print()
             
     def __del__(self):
         self.file.close()
