@@ -217,6 +217,7 @@ class FileSystem:
             if space:
                 self.free_spaces[i] = False
                 return (i + FREE_START // BLOCK_SIZE) * BLOCK_SIZE
+        raise MemoryError("No free spaces available in file. Consider truncating existing files or changing TOTAL_MEMORY in settings.")
 
     def open(self, name: str, mode: str) -> File:
         if re.fullmatch(r'[raw]\+?$', mode) is None:    # valid modes are r, a, w, r+, a+, w+
