@@ -1,5 +1,7 @@
 from FileSystem import FileSystem
 from nodes import File
+import csv
+import io
 
 def extract_cmd(str: str):
     i = str.find(' ')
@@ -13,7 +15,8 @@ def extract_args(str: str):
         return []
     
     str = str[i+1:]   # everything except cmd
-    str = str.split(',')
+    reader = csv.reader(io.StringIO(str), skipinitialspace=True)    # using csv reader to parse arguments
+    str = next(reader)
     for i in range(len(str)):
         str[i] = str[i].strip()
     return str
@@ -22,6 +25,14 @@ def warn_args(cmd, takes, given):
     if given != takes:
         print(f"{cmd} takes exactly {takes} argument(s). {given} were provided.")
         return True
+    return False
+
+def arg_to_int(arg):
+    try:
+        arg = int(arg)
+        return True
+    except ValueError:
+        print(f"Error converting argument {arg} to integer.")
     return False
 
 fs = FileSystem("sample.dat")
@@ -95,7 +106,7 @@ try:
                 
                 if l == 2:
                     opened_files[args[0]].write_to_file(args[1].strip('"').strip("'"))
-                else:
+                elif arg_to_int(args[2]):
                     opened_files[args[0]].write_to_file(args[1].strip('"').strip("'"), int(args[2]))
 
             case "read_from_file":
@@ -108,7 +119,7 @@ try:
                 
                 if l == 1:
                     print(opened_files[args[0]].read_from_file())
-                else:
+                elif arg_to_int(args[1]) and arg_to_int(args[2]):
                     print(opened_files[args[0]].read_from_file(int(args[1]), int(args[2])))
                     
             case "move_within_file":
@@ -118,7 +129,8 @@ try:
                     print(f"{args[0]} is not opened. Cannot read.")
                     continue
                 
-                opened_files[args[0]].move_within_file(int(args[1]), int(args[2]), int(args[3]))
+                if arg_to_int(args[1]) and arg_to_int(args[2]) and arg_to_int(args[3]):
+                    opened_files[args[0]].move_within_file(int(args[1]), int(args[2]), int(args[3]))
 
             case "truncate_file":
                 if warn_args("truncate_file", 2, l):
@@ -126,7 +138,9 @@ try:
                 if args[0] not in opened_files:
                     print(f"{args[0]} is not opened. Cannot truncate.")
                     continue
-                opened_files[args[0]].truncate_file(int(args[1]))
+                
+                if arg_to_int(args[1]):
+                    opened_files[args[0]].truncate_file(int(args[1]))
 
             case "ls":
                 if warn_args("ls", 0, l):
