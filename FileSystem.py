@@ -1,52 +1,22 @@
-from settings import BLOCK_SIZE, FREE_START, TOTAL_MEMORY
 from nodes import Directory, File
-from bitarray import bitarray
-import pickle
-import os
+from disk_manager import DiskManager
 import re
 
 class FileSystem:
     def __init__(self, file_name):
-        if os.path.exists(file_name):
-            self.file = open(file_name, 'r+b')
-            self.load()
+        self.disk_manager = DiskManager(file_name)
+        if self.disk_manager.root:
+            self.root = self.disk_manager.root
+            self.set_fs(self.root)
         else:
-            self.file = open(file_name, 'w+b')
-            self.root: Directory = Directory('/')
-            # denotes free blocks, custom bitarray() is used as it is much smaller to store in file
-            self.free_spaces = bitarray((TOTAL_MEMORY - FREE_START) // BLOCK_SIZE)
-            self.free_spaces.setall(True)
+            self.root = Directory('/')
             self.save()
 
         self.current_path: list[Directory] = [self.root]
         self.opened_files = []
         
     def save(self):
-        # as root contains references to all its children which further contain references, simply pickling the root stores the entire tree
-        metadata = {
-            'free': self.free_spaces,
-            'root': self.root
-        }
-        
-        data = pickle.dumps(metadata)
-        
-        if len(data) > FREE_START:
-            raise MemoryError("Directory tree is too big to store in provided space, consider increasing FREE_START in settings.")
-        
-        # pad nulls for cleanliness
-        data += b'\x00' * (FREE_START - len(data))
-        
-        self.file.seek(0)
-        self.file.write(data)
-        
-    def load(self):
-        self.file.seek(0)
-        data = self.file.read(FREE_START)
-        metadata = pickle.loads(data.rstrip(b'\x00'))   # rstrip to remove null padding
-        self.free_spaces = metadata['free']
-        self.root = metadata['root']
-        self.set_fs(self.root)
-        
+        self.disk_manager.save_metadata(self.root)
     def set_fs(self, root):
         for child in root.children:
             if type(child) == File:
@@ -210,14 +180,6 @@ class FileSystem:
         
         found_dest.children.append(found_src)
         parent_src.children.remove(found_src)
-            
-    # returns start index of a free block
-    def allocate(self) -> int:
-        for i, space in enumerate(self.free_spaces):
-            if space:
-                self.free_spaces[i] = False
-                return (i + FREE_START // BLOCK_SIZE) * BLOCK_SIZE
-        raise MemoryError("No free spaces available in file. Consider truncating existing files or changing TOTAL_MEMORY in settings.")
 
     def open(self, name: str, mode: str) -> File:
         if re.fullmatch(r'[raw]\+?$', mode) is None:    # valid modes are r, a, w, r+, a+, w+
@@ -288,4 +250,4 @@ class FileSystem:
             print()
             
     def __del__(self):
-        self.file.close()
+        pass
