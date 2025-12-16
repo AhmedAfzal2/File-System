@@ -1,5 +1,7 @@
 from settings import BLOCK_SIZE
-import FileSystem
+from typing import TYPE_CHECKING
+if TYPE_CHECKING:
+    import FileSystem
 from file_io import FileReader, FileWriter
 
 class TreeNode:
@@ -16,7 +18,7 @@ class File(TreeNode):
         super().__init__(name)
         self.size: int = 0
         self.blocks: list[int] = []
-        self.fs: FileSystem = fs
+        self.fs: "FileSystem" = fs
         self.reader = FileReader(self)
         self.writer = FileWriter(self)
         
