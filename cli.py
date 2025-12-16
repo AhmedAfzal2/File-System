@@ -15,7 +15,7 @@ class FileSystemCommandVisitor(FileSystemVisitor):
         self.cli = cli
         self.fs = cli.fs
 
-    def visitCreate_cmd(self, ctx:FileSystemParser.Create_cmdCont ):
+    def visitCreate_cmd(self, ctx:FileSystemParser.Create_cmdContext ):
         path = self.get_text(ctx.path())
         self.fs.create(path)
 
