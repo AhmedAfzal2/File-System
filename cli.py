@@ -1,205 +1,170 @@
+import sys
+import os
+# add the .antlr directory to the path so we can import the generated files
+sys.path.append(os.path.join(os.path.dirname(__file__), '.antlr'))
+
+from antlr4 import *
+from antlr4.error.ErrorListener import ErrorListener
 from nodes import File
-import csv
-import io
+from FileSystemLexer import FileSystemLexer
+from FileSystemParser import FileSystemParser
+from FileSystemVisitor import FileSystemVisitor
+
+class FileSystemCommandVisitor(FileSystemVisitor):
+    def __init__(self, cli):
+        self.cli = cli
+        self.fs = cli.fs
+
+    def visitCreate_cmd(self, ctx:FileSystemParser.Create_cmdContext):
+        path = self.get_text(ctx.path())
+        self.fs.create(path)
+
+    def visitDelete_file_cmd(self, ctx:FileSystemParser.Delete_file_cmdContext):
+        path = self.get_text(ctx.path())
+        self.fs.delete_file(path)
+
+    def visitDelete_dir_cmd(self, ctx:FileSystemParser.Delete_dir_cmdContext):
+        path = self.get_text(ctx.path())
+        self.fs.delete_dir(path)
+
+    def visitMkdir_cmd(self, ctx:FileSystemParser.Mkdir_cmdContext):
+        path = self.get_text(ctx.path())
+        self.fs.mkdir(path)
+
+    def visitChdir_cmd(self, ctx:FileSystemParser.Chdir_cmdContext):
+        path = self.get_text(ctx.path())
+        self.fs.chdir(path)
+
+    def visitMove_file_cmd(self, ctx:FileSystemParser.Move_file_cmdContext):
+        src = self.get_text(ctx.src)
+        dest = self.get_text(ctx.dest)
+        self.fs.move_file(src, dest)
+
+    def visitMove_dir_cmd(self, ctx:FileSystemParser.Move_dir_cmdContext):
+        src = self.get_text(ctx.src)
+        dest = self.get_text(ctx.dest)
+        self.fs.move_dir(src, dest)
+
+    def visitOpen_cmd(self, ctx:FileSystemParser.Open_cmdContext):
+        path = self.get_text(ctx.path())
+        mode = self.get_text(ctx.open_mode())
+        file = self.fs.open(path, mode)
+        if file:
+            self.cli.opened_files[path] = file
+
+    def visitClose_cmd(self, ctx:FileSystemParser.Close_cmdContext):
+        path = self.get_text(ctx.path())
+        if path not in self.cli.opened_files:
+            print(f"File {path} is not open.")
+            return
+        self.fs.close(self.cli.opened_files[path])
+        del self.cli.opened_files[path]
+
+    def visitWrite_to_file_cmd(self, ctx:FileSystemParser.Write_to_file_cmdContext):
+        path = self.get_text(ctx.path())
+        data = self.get_text(ctx.data())
+        
+        if path not in self.cli.opened_files:
+            print(f"{path} is not opened. Cannot write.")
+            return
+
+        if ctx.offset:
+            offset = int(ctx.offset.text)
+            self.cli.opened_files[path].write_to_file(data, offset)
+        else:
+            self.cli.opened_files[path].write_to_file(data)
+
+    def visitRead_from_file_cmd(self, ctx:FileSystemParser.Read_from_file_cmdContext):
+        path = self.get_text(ctx.path())
+        if path not in self.cli.opened_files:
+            print(f"{path} is not opened. Cannot read.")
+            return
+
+        if ctx.start and ctx.size:
+            start = int(ctx.start.text)
+            size = int(ctx.size.text)
+            print(self.cli.opened_files[path].read_from_file(start, size))
+        else:
+            print(self.cli.opened_files[path].read_from_file())
+
+    def visitMove_within_file_cmd(self, ctx:FileSystemParser.Move_within_file_cmdContext):
+        path = self.get_text(ctx.path())
+        if path not in self.cli.opened_files:
+            print(f"{path} is not opened. Cannot move within file.")
+            return
+        
+        src = int(ctx.src.text)
+        dest = int(ctx.dest.text)
+        size = int(ctx.size.text)
+        self.cli.opened_files[path].move_within_file(src, dest, size)
+
+    def visitTruncate_file_cmd(self, ctx:FileSystemParser.Truncate_file_cmdContext):
+        path = self.get_text(ctx.path())
+        if path not in self.cli.opened_files:
+            print(f"{path} is not opened. Cannot truncate.")
+            return
+        
+        size = int(ctx.size.text)
+        self.cli.opened_files[path].truncate_file(size)
+
+    def visitLs_cmd(self, ctx:FileSystemParser.Ls_cmdContext):
+        self.fs.ls()
+
+    def visitShow_memory_map_cmd(self, ctx:FileSystemParser.Show_memory_map_cmdContext):
+        self.fs.show_memory_map()
+
+    def visitExit_cmd(self, ctx:FileSystemParser.Exit_cmdContext):
+        sys.exit(0)
+
+    def get_text(self, ctx):
+        text = ctx.getText()
+        if text.startswith('"') and text.endswith('"'):
+            return text[1:-1]
+        if text.startswith("'") and text.endswith("'"):
+            return text[1:-1]
+        return text
+
+class ThrowingErrorListener(ErrorListener):
+    def syntaxError(self, recognizer, offendingSymbol, line, column, msg, e):
+        raise Exception(f"Syntax error at line {line}:{column} {msg}")
 
 class CLI:
     def __init__(self, fs):
         self.fs = fs
         self.opened_files: dict[str, File] = {}
 
-    def extract_cmd(self, str: str):
-        """
-        Extracts the command from the input string.
-        Args:
-            str (str): The input string.
-        Returns:
-            str: The command.
-        """
-        i = str.find(' ')
-        if i == -1:
-            return str.strip().lower()
-        return str[:i].lower()
-
-    def extract_args(self, str: str):
-        """
-        Extracts the arguments from the input string.
-        Args:
-            str (str): The input string.
-        Returns:
-            list[str]: A list of arguments.
-        """
-        i = str.find(' ')
-        if i == -1:
-            return []
-        
-        str = str[i+1:]   # everything except cmd
-        reader = csv.reader(io.StringIO(str), skipinitialspace=True)    # using csv reader to parse arguments
-        try:
-            str = next(reader)
-        except StopIteration:
-            return []
-        for i in range(len(str)):
-            str[i] = str[i].strip()
-        return str
-
-    def warn_args(self, cmd, takes, given):
-        """
-        Checks if the number of arguments provided matches the expected number.
-        Args:
-            cmd (str): The command name.
-            takes (int): The expected number of arguments.
-            given (int): The number of arguments provided.
-        Returns:
-            bool: True if the number of arguments is incorrect, False otherwise.
-        """
-        if given != takes:
-            print(f"{cmd} takes exactly {takes} argument(s). {given} were provided.")
-            return True
-        return False
-
-    def arg_to_int(self, arg):
-        """
-        Converts an argument to an integer safely.
-        Args:
-            arg (str): The argument to convert.
-        Returns:
-            bool: True if conversion was successful, False otherwise.
-        """
-        try:
-            arg = int(arg)
-            return True
-        except ValueError:
-            print(f"Error converting argument {arg} to integer.")
-        return False
-
     def run(self):
         """
         Starts the CLI loop.
         """
-        p = ''
-        try:
-            while (p != "exit"):
-                self.fs.print_current_path()
-                p = input()
-                cmd = self.extract_cmd(p)
-                args = self.extract_args(p)
-                l = len(args)
-                match cmd:
-                    case "create":
-                        if self.warn_args("create", 1, l):
-                            continue
-                        self.fs.create(args[0])
+        print("Welcome to the File System CLI. Type 'exit' to quit.")
+        while True:
+            self.fs.print_current_path()
+            try:
+                user_input = input()
+                if not user_input.strip():
+                    continue
+                
+                input_stream = InputStream(user_input)
+                lexer = FileSystemLexer(input_stream)
+                lexer.removeErrorListeners()
+                lexer.addErrorListener(ThrowingErrorListener())
+                
+                stream = CommonTokenStream(lexer)
+                parser = FileSystemParser(stream)
+                parser.removeErrorListeners()
+                parser.addErrorListener(ThrowingErrorListener())
+                
+                tree = parser.root()
+                visitor = FileSystemCommandVisitor(self)
+                visitor.visit(tree)
 
-                    case "delete_file":
-                        if self.warn_args("delete_file", 1, l):
-                            continue
-                        self.fs.delete_file(args[0])
-
-                    case "delete_dir":
-                        if self.warn_args("delete_dir", 1, l):
-                            continue
-                        self.fs.delete_dir(args[0])
-
-                    case "mkdir":
-                        if self.warn_args("mkdir", 1, l):
-                            continue
-                        self.fs.mkdir(args[0])
-
-                    case "chdir":
-                        if self.warn_args("chdir", 1, l):
-                            continue
-                        self.fs.chdir(args[0])
-
-                    case "move_file":
-                        if self.warn_args("move", 2, l):
-                            continue
-                        self.fs.move_file(args[0], args[1])
-                        
-                    case "move_dir":
-                        if self.warn_args("move", 2, l):
-                            continue
-                        self.fs.move_dir(args[0], args[1])
-                    
-                    case "open":
-                        if self.warn_args("open", 2, l):
-                            continue
-                        file = self.fs.open(args[0], args[1])
-                        if file:
-                            self.opened_files[args[0]] = file
-
-                    case "close":
-                        if self.warn_args("close", 1, l):
-                            continue
-                        if args[0] not in self.opened_files:
-                            print(f"File {args[0]} is not open.")
-                            continue
-                        self.fs.close(self.opened_files[args[0]])
-                        if args[0] in self.opened_files:
-                            del self.opened_files[args[0]]
-
-                    case "write_to_file":
-                        if l != 2 and l != 3:
-                            print(f"write_to_file takes 2 or 3 arguments. {l} were provided.")
-                            continue
-                        if args[0] not in self.opened_files:
-                            print(f"{args[0]} is not opened. Cannot write.")
-                            continue
-                        
-                        if l == 2:
-                            self.opened_files[args[0]].write_to_file(args[1].strip('"').strip("'"))
-                        elif self.arg_to_int(args[2]):
-                            self.opened_files[args[0]].write_to_file(args[1].strip('"').strip("'"), int(args[2]))
-
-                    case "read_from_file":
-                        if l != 1 and l != 3:
-                            print(f"read_from_file takes 1 or 3 arguments. {l} were provided.")
-                            continue
-                        if args[0] not in self.opened_files:
-                            print(f"{args[0]} is not opened. Cannot read.")
-                            continue
-                        
-                        if l == 1:
-                            print(self.opened_files[args[0]].read_from_file())
-                        elif self.arg_to_int(args[1]) and self.arg_to_int(args[2]):
-                            print(self.opened_files[args[0]].read_from_file(int(args[1]), int(args[2])))
-
-                    case "move_within_file":
-                        if self.warn_args("move_within_file", 4, l):
-                            continue
-                        if args[0] not in self.opened_files:
-                            print(f"{args[0]} is not opened. Cannot read.")
-                            continue
-                        if not self.arg_to_int(args[1]) or not self.arg_to_int(args[2]) or not self.arg_to_int(args[3]):
-                            continue
-                        self.opened_files[args[0]].move_within_file(int(args[1]), int(args[2]), int(args[3]))
-
-                    case "truncate_file":
-                        if self.warn_args("truncate_file", 2, l):
-                            continue
-                        if args[0] not in self.opened_files:
-                            print(f"{args[0]} is not opened. Cannot truncate.")
-                            continue
-                        if not self.arg_to_int(args[1]):
-                            continue
-                        self.opened_files[args[0]].truncate_file(int(args[1]))
-
-                    case "ls":
-                        if self.warn_args("ls", 0, l):
-                            continue
-                        self.fs.ls()
-
-                    case "show_memory_map":
-                        if self.warn_args("show_memory_map", 0, l):
-                            continue
-                        self.fs.show_memory_map()
-
-                    case "exit":
-                        pass
-
-                    case _:
-                        print(f"Function {cmd} is not recognized.")
-
-        except KeyboardInterrupt:
-            print("\nExiting...")
-        finally:
-            del self.fs
+            except SystemExit:
+                break
+            except Exception as e:
+                print(f"Error: {e}")
+            except KeyboardInterrupt:
+                print("\nExiting...")
+                break
+        
+        del self.fs

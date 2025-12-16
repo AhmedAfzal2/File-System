@@ -281,7 +281,7 @@ class FileSystem:
 
     def open(self, name: str, mode: str) -> File:
         """
-        Opens a file with the specified mode. Mutates the self.opened_files array.
+        Opens a file with the specified mode.
         Args:
             name (str): The path to the file.
             mode (str): The mode to open the file in.
@@ -316,7 +316,7 @@ class FileSystem:
     
     def close(self, file: File):
         """
-        Closes an opened file. Mutates the self.opened_files array.
+        Closes an opened file.
         Args:
             file (File): The file object to close.
         """
