@@ -9,6 +9,11 @@ class FileReader:
         return self.file_node.fs.disk_manager
 
     def read_entire_file(self) -> bytes:
+        """
+        Reads the entire content of the file.
+        Returns:
+            bytes: The content of the file.
+        """
         if self.file_node.mode != 'r' and self.file_node.mode != 'all':
             print("Attempt to read in wrong mode.")
             return
@@ -27,6 +32,14 @@ class FileReader:
         return data
 
     def read_from_file(self, start: int = None, size: int = None) -> bytes:
+        """
+        Reads a specific range of bytes from the file.
+        Args:
+            start (int, optional): The starting byte index. Defaults to None (start of file).
+            size (int, optional): The number of bytes to read. Defaults to None (until end of file).
+        Returns:
+            bytes: The read data.
+        """
         # overloading
         if start == None and size == None:
             return self.read_entire_file()
@@ -77,12 +90,22 @@ class FileWriter:
 
     # returns remaining empty space in the last allocated block
     def last_block_remaining_size(self):
+        """
+        Calculates the remaining empty space in the last allocated block of the file.
+        Returns:
+            int: The number of bytes remaining in the last block.
+        """
         if self.file_node.size % BLOCK_SIZE == 0 and self.file_node.size != 0:
             return 0
         else:
             return BLOCK_SIZE - (self.file_node.size % BLOCK_SIZE)
 
     def append_to_file(self, data: str):
+        """
+        Appends data to the end of the file.
+        Args:
+            data (str): The data to append.
+        """
         if self.file_node.mode == 'r':
             print("Attempt to write in read mode.")
             return
@@ -122,6 +145,12 @@ class FileWriter:
         self.file_node.fs.save()
 
     def write_to_file(self, data: str, write_at: int = None):
+        """
+        Writes data to the file, optionally at a specific position.
+        Args:
+            data (str): The data to write.
+            write_at (int, optional): The byte offset to start writing at. Defaults to None (append).
+        """
         # because python does not support overloading
         if write_at == None:
             self.append_to_file(data)
@@ -198,6 +227,11 @@ class FileWriter:
         self.file_node.fs.save()
 
     def truncate_file(self, size):
+        """
+        Truncates the file to a specific size.
+        Args:
+            size (int): The new size of the file.
+        """
         start_block = size // BLOCK_SIZE
         if size % BLOCK_SIZE != 0:
             start_block += 1
@@ -209,6 +243,13 @@ class FileWriter:
         self.file_node.fs.save()
     
     def move_within_file(self, source, dest, size):
+        """
+        Moves a block of data within the file.
+        Args:
+            source (int): The source byte offset.
+            dest (int): The destination byte offset.
+            size (int): The number of bytes to move.
+        """
         if source < 0 or dest < 0 or size < 0:
             print("Arguments cannot be negative.")
             return

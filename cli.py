@@ -8,12 +8,26 @@ class CLI:
         self.opened_files: dict[str, File] = {}
 
     def extract_cmd(self, str: str):
+        """
+        Extracts the command from the input string.
+        Args:
+            str (str): The input string.
+        Returns:
+            str: The command.
+        """
         i = str.find(' ')
         if i == -1:
             return str.strip().lower()
         return str[:i].lower()
 
     def extract_args(self, str: str):
+        """
+        Extracts the arguments from the input string.
+        Args:
+            str (str): The input string.
+        Returns:
+            list[str]: A list of arguments.
+        """
         i = str.find(' ')
         if i == -1:
             return []
@@ -29,12 +43,28 @@ class CLI:
         return str
 
     def warn_args(self, cmd, takes, given):
+        """
+        Checks if the number of arguments provided matches the expected number.
+        Args:
+            cmd (str): The command name.
+            takes (int): The expected number of arguments.
+            given (int): The number of arguments provided.
+        Returns:
+            bool: True if the number of arguments is incorrect, False otherwise.
+        """
         if given != takes:
             print(f"{cmd} takes exactly {takes} argument(s). {given} were provided.")
             return True
         return False
 
     def arg_to_int(self, arg):
+        """
+        Converts an argument to an integer safely.
+        Args:
+            arg (str): The argument to convert.
+        Returns:
+            bool: True if conversion was successful, False otherwise.
+        """
         try:
             arg = int(arg)
             return True
@@ -43,6 +73,9 @@ class CLI:
         return False
 
     def run(self):
+        """
+        Starts the CLI loop.
+        """
         p = ''
         try:
             while (p != "exit"):

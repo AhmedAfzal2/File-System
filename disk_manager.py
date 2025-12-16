@@ -18,6 +18,13 @@ class DiskManager:
             self.root = None    # only for loading
             
     def save_metadata(self, root):
+        """
+        Saves the file system metadata (free spaces and directory tree) to the disk file.
+        Args:
+            root (Directory): The root directory of the file system.
+        Raises:
+            MemoryError: If the metadata is too large to fit in the reserved space.
+        """
         # as root contains references to all its children which further contain references, simply pickling the root stores the entire tree
         metadata = {
             'free': self.free_spaces,
@@ -36,6 +43,9 @@ class DiskManager:
         self.file.write(data)
         
     def load_metadata(self):
+        """
+        Loads the file system metadata from the disk file.
+        """
         self.file.seek(0)
         data = self.file.read(FREE_START)
         try:
@@ -48,6 +58,13 @@ class DiskManager:
         
     # returns start index of a free block
     def allocate(self) -> int:
+        """
+        Allocates a free block from the disk.
+        Returns:
+            int: The byte offset of the allocated block.
+        Raises:
+            MemoryError: If no free spaces are available.
+        """
         for i, space in enumerate(self.free_spaces):
             if space:
                 self.free_spaces[i] = False
@@ -55,6 +72,11 @@ class DiskManager:
         raise MemoryError("No free spaces available in file. Consider truncating existing files or changing TOTAL_MEMORY in settings.")
 
     def deallocate(self, block_index):
+        """
+        Deallocates a block, making it available for reuse.
+        Args:
+            block_index (int): The byte offset of the block to deallocate.
+        """
         # block_index is the byte offset, convert to index in free_spaces
         idx = (block_index - FREE_START) // BLOCK_SIZE
         if 0 <= idx < len(self.free_spaces):
